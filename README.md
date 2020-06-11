@@ -1,11 +1,11 @@
-# resolve-it
+# resolvd
 Simple, small, and type-safe inversion of control/dependency injection for JavaScript & TypeScript with zero dependencies
 
 ## Circular dependencies
-resolve-it will identify circular dependencies and throw an error message containing the offending services:
+resolvd will identify circular dependencies and throw an error message containing the offending services:
 
 ```typescript
-import { ioc } from 'resolve-it';
+import { ioc } from 'resolvd';
 
 // A requires B, which requires C, which requires A, which requires B, etc.
 const serviceA = (_: { serviceB: unknown }) => {};
@@ -35,7 +35,7 @@ Trying to define a dependency of the wrong type will cause an TypeScript error -
 
 ## Usage
 ```typescript
-import { ioc } from 'resolve-it';
+import { ioc } from 'resolvd';
 
 interface ILogger {
   log(msg: string): void;

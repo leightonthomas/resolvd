@@ -1,5 +1,5 @@
 {
-  "name": "resolve-it",
+  "name": "resolvd",
   "description": "Simple inversion of control & dependency injection library",
   "author": "Leighton Thomas <leighton.thomas@vivait.co.uk>",
   "version": "1.0.0",
