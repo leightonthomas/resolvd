@@ -11,6 +11,14 @@
     "ts-jest": "^26.1.0",
     "typescript": "^3.9.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leightonthomas/resolve-it.git"
+  },
+  "bugs": {
+    "url": "https://github.com/leightonthomas/resolve-it/issues"
+  },
+  "homepage": "https://github.com/leightonthomas/resolve-it",
   "files": [
     "lib"
   ],
