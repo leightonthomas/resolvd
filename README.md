@@ -55,7 +55,7 @@ interface PrivateServices {
 }
 
 const somePreConstructedObject = {
-    foo: 'bar',
+  foo: 'bar',
 };
 
 const consoleLogger = (deps: { someParamName: IClock }): ILogger => ({
@@ -75,7 +75,8 @@ const services = container.resolve({
   // use `container.define` to define each service definition
   logger: container.define(consoleLogger, { someParamName: 'clock' }),
   clock: container.define(clock, {}),
-  someObject: container.define(_ => somePreConstructedObject, {}),
+  // always provide a new instance of this service to whatever is requesting it
+  someObject: container.define(_ => somePreConstructedObject, { alwaysNewInstance: true }),
 });
 
 // the PublicServices are now available!
