@@ -26,6 +26,7 @@ const IocTag: unique symbol = Symbol('fnIocConstructed');
 interface ServiceDefinition<OverallServices, ExpectedType> {
   readonly _tag: typeof IocTag;
   service: (arg: { [key: string]: unknown }) => ExpectedType;
+  options: ServiceOptions;
   dependencies: {
     [key: string]: keyof OverallServices;
   };
@@ -39,15 +40,29 @@ type ServiceParams<D extends Record<string, keyof OverallServices>, OverallServi
   [key in keyof D]: D[key] extends keyof OverallServices ? OverallServices[D[key]] : unknown
 };
 
+interface ServiceOptions {
+  /**
+   * Whether or not to provide a new instance to every usage of this dependency.
+   */
+  alwaysNewInstance: boolean;
+}
+
 type ServiceDefiner<OverallServices extends object> = <D extends Record<string, keyof OverallServices>, R>(
   service: (arg: ServiceParams<D, OverallServices>) => R,
   deps: D,
+  options?: Partial<ServiceOptions>,
 ) => ServiceDefinition<OverallServices, R>;
 
-const registerService = <OverallServices extends object>(): ServiceDefiner<OverallServices> => (service, deps) => ({
+const registerService = <OverallServices extends object>(): ServiceDefiner<OverallServices> => (service, deps, options) => ({
   service: service as ServiceDefinition<OverallServices, ReturnType<typeof service>>['service'],
   dependencies: deps,
   _tag: IocTag,
+  options: Object.assign(
+    {
+      alwaysNewInstance: false,
+    },
+    options || {},
+  ),
 });
 
 const resolveDependencies = <Public extends object, Private extends object>(
@@ -96,20 +111,34 @@ const resolveDependencies = <Public extends object, Private extends object>(
     }
   }
 
+  const serviceFactories = new Map<keyof OverallServices, () => unknown>();
+
   return constructionOrder.value.reduce(
     (carry, next) => {
       const definition = defs[next as keyof OverallServices];
 
-      carry[next as keyof OverallServices] = definition.service(
+      const createServiceInstance = () => definition.service(
         Object.entries<keyof OverallServices>(definition.dependencies).reduce(
           (dependencies, nextDepDefinition) => {
-            dependencies[nextDepDefinition[0]] = carry[nextDepDefinition[0] as keyof OverallServices];
+            const nextDepKey = nextDepDefinition[1];
+
+            if (serviceFactories.has(nextDepKey)) {
+              dependencies[nextDepDefinition[0]] = serviceFactories.get(nextDepKey)!();
+            } else {
+              dependencies[nextDepDefinition[0]] = carry[nextDepKey];
+            }
 
             return dependencies;
           },
           {} as { [key: string]: unknown },
         ),
       ) as OverallServices[keyof OverallServices];
+
+      if (definition.options.alwaysNewInstance) {
+        serviceFactories.set(next as keyof OverallServices, createServiceInstance);
+      }
+
+      carry[next as keyof OverallServices] = createServiceInstance();
 
       return carry;
     },
