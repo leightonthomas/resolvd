@@ -7,7 +7,7 @@ export interface Container<Public extends object, Private extends object> {
    *
    * @param defs - The service definitions
    */
-  resolve: (defs: DepResolver<Public & Private>) => Public;
+  resolve: (defs: DepResolver<Public & Private>) => Promise<Public>;
 
   /**
    * Define a service for use with `resolve`
@@ -25,7 +25,7 @@ const IocTag: unique symbol = Symbol('fnIocConstructed');
 // we can be flexible with the typing here as it's going to be more specific on the actual definition
 interface ServiceDefinition<OverallServices, ExpectedType> {
   readonly _tag: typeof IocTag;
-  service: (arg: { [key: string]: unknown }) => ExpectedType;
+  service: (arg: { [key: string]: unknown }) => Promise<ExpectedType>|ExpectedType;
   options: ServiceOptions;
   dependencies: {
     [key: string]: keyof OverallServices;
@@ -48,26 +48,24 @@ interface ServiceOptions {
 }
 
 type ServiceDefiner<OverallServices extends object> = <D extends Record<string, keyof OverallServices>, R>(
-  service: (arg: ServiceParams<D, OverallServices>) => R,
+  service: (arg: ServiceParams<D, OverallServices>) => Promise<R>|R,
   deps: D,
   options?: Partial<ServiceOptions>,
 ) => ServiceDefinition<OverallServices, R>;
 
 const registerService = <OverallServices extends object>(): ServiceDefiner<OverallServices> => (service, deps, options) => ({
-  service: service as ServiceDefinition<OverallServices, ReturnType<typeof service>>['service'],
+  service: service as (arg: { [key: string]: unknown }) => ReturnType<typeof service>,
   dependencies: deps,
   _tag: IocTag,
   options: Object.assign(
-    {
-      alwaysNewInstance: false,
-    },
+    { alwaysNewInstance: false },
     options || {},
   ),
 });
 
-const resolveDependencies = <Public extends object, Private extends object>(
+const resolveDependencies = async <Public extends object, Private extends object>(
   defs: DepResolver<Public & Private>
-): Public => {
+): Promise<Public> => {
   type OverallServices = Public & Private;
 
   // Figure out what order we should create things in
@@ -111,38 +109,37 @@ const resolveDependencies = <Public extends object, Private extends object>(
     }
   }
 
-  const serviceFactories = new Map<keyof OverallServices, () => unknown>();
+  const serviceFactories = new Map<keyof OverallServices, () => Promise<unknown>>();
+  const constructedServices = {} as OverallServices;
 
-  return constructionOrder.value.reduce(
-    (carry, next) => {
-      const definition = defs[next as keyof OverallServices];
+  for(const nextConstruction of constructionOrder.value) {
+    const definition = defs[nextConstruction as keyof OverallServices];
 
-      const createServiceInstance = () => definition.service(
-        Object.entries<keyof OverallServices>(definition.dependencies).reduce(
-          (dependencies, nextDepDefinition) => {
-            const nextDepKey = nextDepDefinition[1];
+    const createServiceInstance = async () => {
+      const dependencies: { [key: string]: unknown } = {};
 
-            if (serviceFactories.has(nextDepKey)) {
-              dependencies[nextDepDefinition[0]] = serviceFactories.get(nextDepKey)!();
-            } else {
-              dependencies[nextDepDefinition[0]] = carry[nextDepKey];
-            }
+      for (const nextDepDefinition of Object.entries(definition.dependencies)) {
+        const nextDepKey = nextDepDefinition[1];
 
-            return dependencies;
-          },
-          {} as { [key: string]: unknown },
-        ),
-      ) as OverallServices[keyof OverallServices];
-
-      if (definition.options.alwaysNewInstance) {
-        serviceFactories.set(next as keyof OverallServices, createServiceInstance);
+        if (serviceFactories.has(nextDepKey)) {
+          dependencies[nextDepDefinition[0]] = await serviceFactories.get(nextDepKey)!();
+        } else {
+          dependencies[nextDepDefinition[0]] = constructedServices[nextDepKey];
+        }
       }
 
-      carry[next as keyof OverallServices] = createServiceInstance();
+      return await definition.service(dependencies);
+    };
 
-      return carry;
-    },
-    {} as OverallServices,
-  ) as Public;
+    if (definition.options.alwaysNewInstance) {
+      serviceFactories.set(nextConstruction as keyof OverallServices, createServiceInstance);
+    }
+
+    constructedServices[nextConstruction as keyof OverallServices] = (
+      await createServiceInstance()
+    ) as OverallServices[keyof OverallServices];
+  }
+
+  return constructedServices;
 };
 

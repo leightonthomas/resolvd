@@ -1,7 +1,7 @@
 import { ioc } from "../index";
 
 describe('ioc', () => {
-  it('will throw if there are circular dependencies present', () => {
+  it('will throw if there are circular dependencies present', async () => {
     const serviceA = (_: { someParam: any }) => 4;
     const serviceB = (_: { someParam: any }) => 4;
     const serviceC = (_: { someParam: number }) => 4;
@@ -14,17 +14,17 @@ describe('ioc', () => {
 
     const container = ioc<PublicServices>();
 
-    expect(() => {
-      container.resolve({
+    await expect(
+      async () => container.resolve({
         a: container.define(serviceA, { someParam: 'b' }),
         b: container.define(serviceB, { someParam: 'c' }),
         c: container.define(serviceB, { someParam: 'a' }),
-      });
-    }).toThrow('There are circular dependencies in your service definitions:\n* b -> a -> c -> b');
+      })
+    ).rejects.toThrow('There are circular dependencies in your service definitions:\n* b -> a -> c -> b');
   });
 
-  it('creates the services if configured correctly', () => {
-    const logger = (_: { clock: Clock }): Logger => ({
+  it('creates the services if configured correctly', async () => {
+    const logger = async (_: { clock: Clock }): Promise<Logger> => ({
       log() {},
     });
 
@@ -38,7 +38,7 @@ describe('ioc', () => {
     }
 
     const container = ioc<PublicServices>();
-    const result = container.resolve({
+    const result = await container.resolve({
       clock: container.define(clock, {}),
       logger: container.define(logger, { clock: 'clock' }),
     });
@@ -49,7 +49,7 @@ describe('ioc', () => {
     expect(result.clock).toHaveProperty('now');
   });
 
-  it('will provide new instances of services when they are configured to do so', () => {
+  it('will provide new instances of services when they are configured to do so', async () => {
     const incrementer = jest.fn();
 
     interface PublicServices {
@@ -59,10 +59,10 @@ describe('ioc', () => {
     }
 
     const container = ioc<PublicServices>();
-    const result = container.resolve({
+    const result = await container.resolve({
       incrementer: container.define(incrementer, {}, { alwaysNewInstance: true }),
       myService1: container.define((_: { i: () => void }) => () => {}, { i: 'incrementer' }),
-      myService2: container.define((_: { i: () => void }) => () => {}, { i: 'incrementer' })
+      myService2: container.define(async (_: { i: () => void }) => () => {}, { i: 'incrementer' })
     });
 
     expect(result).toHaveProperty('incrementer');
@@ -80,7 +80,7 @@ describe('ioc', () => {
 
   it.each(sameServiceOptions)(
     'will provide the same instance of a services when they are configured to do so (%s)',
-    (_, options) => {
+    async (_, options) => {
       const incrementer = jest.fn();
 
       interface PublicServices {
@@ -90,9 +90,9 @@ describe('ioc', () => {
       }
 
       const container = ioc<PublicServices>();
-      const result = container.resolve({
+      const result = await container.resolve({
         incrementer: container.define(incrementer, {}, options),
-        myService1: container.define((_: { i: () => void }) => () => {}, { i: 'incrementer' }),
+        myService1: container.define(async (_: { i: () => void }) => () => {}, { i: 'incrementer' }),
         myService2: container.define((_: { i: () => void }) => () => {}, { i: 'incrementer' })
       });
 
@@ -104,9 +104,9 @@ describe('ioc', () => {
     },
   );
 
-  it('creates with no services', () => {
+  it('creates with no services', async () => {
     const container = ioc<{}>();
-    const result = container.resolve({});
+    const result = await container.resolve({});
 
     expect(result).toEqual({});
   });

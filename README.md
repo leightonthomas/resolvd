@@ -1,6 +1,20 @@
 # resolvd
 Simple, small, and type-safe inversion of control/dependency injection for JavaScript & TypeScript with zero dependencies
 
+## Upgrading from 1.x -> 2.x
+Version 2 is fully promise based, but the only change that's necessary is `await`ing the result of `ioc().resolve`:
+
+```typescript
+import { ioc } from 'resolvd';
+
+const container = ioc();
+
+// throws:
+// There are circular dependencies in your service definitions:
+// * b -> a -> c -> b
+await container.resolve({ /** ...service definitions */ });
+```
+
 ## Circular dependencies
 resolvd will identify circular dependencies and throw an error message containing the offending services:
 
@@ -58,7 +72,7 @@ const somePreConstructedObject = {
   foo: 'bar',
 };
 
-const consoleLogger = (deps: { someParamName: IClock }): ILogger => ({
+const consoleLogger = async (deps: { someParamName: IClock }): Promise<ILogger> => ({
   log(msg) {
     console.log(`[${deps.someParamName.now().toISOString()}] ${msg}`);
   },
@@ -71,7 +85,7 @@ const clock = (): IClock => ({
 // create a new container with the specified services available
 const container = ioc<PublicServices, PrivateServices>();
 // resolve the service definitions into an object of type `PublicServices`
-const services = container.resolve({
+const services = await container.resolve({
   // use `container.define` to define each service definition
   logger: container.define(consoleLogger, { someParamName: 'clock' }),
   clock: container.define(clock, {}),
