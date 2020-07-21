@@ -2,7 +2,7 @@
   "name": "resolvd",
   "description": "Simple inversion of control & dependency injection library",
   "author": "Leighton Thomas <leighton.thomas@vivait.co.uk>",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "license": "MIT",
   "sideEffects": false,
   "devDependencies": {
